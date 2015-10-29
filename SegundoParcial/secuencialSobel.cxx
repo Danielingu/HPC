@@ -55,14 +55,13 @@ int main(){
   Mat imagenGris;
   
 //Leer imagen y separar memoria
-  imagen = imread("inputs/img1.jpg");
+  imagen = imread("inputs/img1.jpg", 0);
   Size s = imagen.size();
   int row=s.width;
   int col=s.height;
   char M[9] = {-1,0,1,-2,0,2,-1,0,1};
   imagenGris.create(col,row,CV_8UC1);
   
-//Separo memoria para las imagenes en el host
   int sizeM= sizeof(unsigned char)*9;
   int size = sizeof(unsigned char)*row*col;
   unsigned char *img=(unsigned char*)malloc(size);
@@ -71,38 +70,45 @@ int main(){
   img=imagen.data;
 
 //Secuencial 
-
-  secuencial = clock();
-  Sobel( imagen, gradiente_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
-  printf("Tiempo secuencial: %.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
-  imwrite("./outputs/1088302627.png",gradiente_x);
-
+  for(int i =1; i<21; i++){
+    
+    secuencial = clock();
+    Sobel( imagen, gradiente_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+    Sobel( gradiente_x, gradiente_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    printf("Tiempo secuencial: %.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
+    imwrite("./outputs/1088302627.png",gradiente_x);
+    
+  }
 //Paralelo
+  for(int j =1; j<21; j++){
+    
+    float blocksize=32;
+    dim3 dimBlock((int)blocksize,(int)blocksize,1);
+    dim3 dimGrid(ceil(row/blocksize),ceil(col/blocksize),1);
+    unsigned char *d_img;
+    unsigned char *d_img_out;
+    char *d_M;
+    cudaMalloc((void**)&d_img,size);
+    cudaMalloc((void**)&d_img_out,size);
+    cudaMalloc((void**)&d_M,sizeM);
 
-  float blocksize=32;
-  dim3 dimBlock((int)blocksize,(int)blocksize,1);
-  dim3 dimGrid(ceil(row/blocksize),ceil(col/blocksize),1);
-  unsigned char *d_img;
-  unsigned char *d_img_out;
-  char *d_M;
-  cudaMalloc((void**)&d_img,size);
-  cudaMalloc((void**)&d_img_out,size);
-  cudaMalloc((void**)&d_M,sizeM);
+    paralelo = clock();
+    cudaMemcpy(d_M,M,sizeM,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_img,img,size, cudaMemcpyHostToDevice);
 
-  paralelo = clock();
-  cudaMemcpy(d_M,M,sizeM,cudaMemcpyHostToDevice);
-  cudaMemcpy(d_img,img,size, cudaMemcpyHostToDevice);
-  KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_M,d_img_out,3,row,col);
-  cudaDeviceSynchronize();
-  cudaMemcpy(img_out,d_img_out,size,cudaMemcpyDeviceToHost);
-  printf("Tiempo paralelo: %.8f\n", (clock()-paralelo)/(double)CLOCKS_PER_SEC);
+    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_M,d_img_out,3,row,col);
+    cudaDeviceSynchronize();
+    cudaMemcpy(img_out,d_img_out,size,cudaMemcpyDeviceToHost);
+    printf("Tiempo paralelo: %.8f\n", (clock()-paralelo)/(double)CLOCKS_PER_SEC);
 
-  imagenGris.data = img_out;
-  //imwrite("./outputs/1088302627.png",imagenGris);
+    imagenGris.data = img_out;
+    //imwrite("./outputs/1088302627.png",imagenGris);
 
-  cudaFree(d_img);
-  cudaFree(d_img_out);
-  cudaFree(d_M);
+    cudaFree(d_img);
+    cudaFree(d_img_out);
+    cudaFree(d_M);
+  }
   
   return 0; 
+  
 }
