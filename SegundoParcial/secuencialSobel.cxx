@@ -82,8 +82,6 @@ int main(){
   float blocksize=32;
   dim3 dimBlock((int)blocksize,(int)blocksize,1);
   dim3 dimGrid(ceil(row/blocksize),ceil(col/blocksize),1);
-
-   //Separo memoria en el device
   unsigned char *d_img;
   unsigned char *d_img_out;
   char *d_M;
@@ -94,8 +92,6 @@ int main(){
   paralelo = clock();
   cudaMemcpy(d_M,M,sizeM,cudaMemcpyHostToDevice);
   cudaMemcpy(d_img,img,size, cudaMemcpyHostToDevice);
-
-  // Llamado al kernel
   KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_M,d_img_out,3,row,col);
   cudaDeviceSynchronize();
   cudaMemcpy(img_out,d_img_out,size,cudaMemcpyDeviceToHost);
