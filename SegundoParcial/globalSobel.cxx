@@ -26,10 +26,10 @@ __global__ void KernelConvolutionBasic(unsigned char *Img_in, char *M,unsigned c
   int N_start_point_j = col - (Mask_Width/2);
 
     int Pvalue=0;
-    for (int ii= 0;ii<Mask_Width;ii++) {
-      for (int jj= 0;jj<Mask_Width;jj++) {
-        if ((N_start_point_i+ii >= 0 && N_start_point_i + ii < colImg)&& (N_start_point_j+jj >= 0 && N_start_point_j + jj < rowImg)) {
-          Pvalue+=Img_in[(N_start_point_i+ii)*rowImg+(N_start_point_j+jj)]*M[ii*Mask_Width+jj];
+    for (int i= 0;i<Mask_Width;i++) {
+      for (int j= 0;j<Mask_Width;j++) {
+        if ((N_start_point_i+i >= 0 && N_start_point_i + i < colImg)&& (N_start_point_j+j >= 0 && N_start_point_j + j < rowImg)) {
+          Pvalue+=Img_in[(N_start_point_i+i)*rowImg+(N_start_point_j+j)]*M[i*Mask_Width+j];
         }
 
       }
@@ -71,7 +71,7 @@ int main(){
   Mat abs_grad_x, abs_grad_y;
   
 //Leer imagen y separar memoria
-  imagen = imread("inputs/img6.jpg", 0);
+  imagen = imread("inputs/img1.jpg", 0);
   Size s = imagen.size();
   int row=s.width;
   int col=s.height;
