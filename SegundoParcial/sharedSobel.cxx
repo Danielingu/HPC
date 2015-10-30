@@ -25,7 +25,7 @@ __device__ unsigned char clamp(int v){
   return v;
 }
 
-__global__ void KernelConvolutionBasic1(unsigned char *In, unsigned char *Out,int maskWidth, int width, int height){
+__global__ void KernelConvolutionBasic1(unsigned char *In, unsigned char *IMAGEN_salida,int maskWidth, int width, int height){
   
   __shared__ float N_ds[TILE_SIZE + MASK_size - 1][TILE_SIZE+ MASK_size - 1];
   
@@ -38,7 +38,6 @@ __global__ void KernelConvolutionBasic1(unsigned char *In, unsigned char *Out,in
    else
        N_ds[destY][destX] = 0;
 
-   // Second batch loading
    dest = threadIdx.y * TILE_SIZE + threadIdx.x + TILE_SIZE * TILE_SIZE;
    destY = dest /(TILE_SIZE + MASK_size - 1), destX = dest % (TILE_SIZE + MASK_size - 1);
    srcY = blockIdx.y * TILE_SIZE + destY - n;
@@ -52,19 +51,21 @@ __global__ void KernelConvolutionBasic1(unsigned char *In, unsigned char *Out,in
    }
    __syncthreads();
 
-   int accum = 0;
+   int Pvalue = 0;
    int y, x;
    for (y = 0; y < maskWidth; y++)
        for (x = 0; x < maskWidth; x++)
-           accum += N_ds[threadIdx.y + y][threadIdx.x + x] * MASKx[y * maskWidth + x];
+           Pvalue += N_ds[threadIdx.y + y][threadIdx.x + x] * MASKx[y * maskWidth + x];
+           
    y = blockIdx.y * TILE_SIZE + threadIdx.y;
    x = blockIdx.x * TILE_SIZE + threadIdx.x;
+   
    if (y < height && x < width)
-       Out[(y * width + x)] = clamp(accum);
+       IMAGEN_salida[(y * width + x)] = clamp(Pvalue);
    __syncthreads();
 }
 
-__global__ void KernelConvolutionBasic2(unsigned char *In, unsigned char *Out,int maskWidth, int width, int height){
+__global__ void KernelConvolutionBasic2(unsigned char *In, unsigned char *IMAGEN_salida,int maskWidth, int width, int height){
   
   __shared__ float N_ds[TILE_SIZE + MASK_size - 1][TILE_SIZE+ MASK_size - 1];
   
@@ -77,7 +78,6 @@ __global__ void KernelConvolutionBasic2(unsigned char *In, unsigned char *Out,in
    else
        N_ds[destY][destX] = 0;
 
-   // Second batch loading
    dest = threadIdx.y * TILE_SIZE + threadIdx.x + TILE_SIZE * TILE_SIZE;
    destY = dest /(TILE_SIZE + MASK_size - 1), destX = dest % (TILE_SIZE + MASK_size - 1);
    srcY = blockIdx.y * TILE_SIZE + destY - n;
@@ -91,15 +91,17 @@ __global__ void KernelConvolutionBasic2(unsigned char *In, unsigned char *Out,in
    }
    __syncthreads();
 
-   int accum = 0;
+   int Pvalue = 0;
    int y, x;
    for (y = 0; y < maskWidth; y++)
        for (x = 0; x < maskWidth; x++)
-           accum += N_ds[threadIdx.y + y][threadIdx.x + x] * MASKy[y * maskWidth + x];
+           Pvalue += N_ds[threadIdx.y + y][threadIdx.x + x] * MASKy[y * maskWidth + x];
+           
    y = blockIdx.y * TILE_SIZE + threadIdx.y;
    x = blockIdx.x * TILE_SIZE + threadIdx.x;
+   
    if (y < height && x < width)
-       Out[(y * width + x)] = clamp(accum);
+       IMAGEN_salida[(y * width + x)] = clamp(Pvalue);
    __syncthreads();
 }
 
