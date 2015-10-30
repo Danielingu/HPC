@@ -23,7 +23,7 @@ __device__ unsigned char clamp(int v){
   return v;
 }
 
-__global__ void KernelConvolutionBasic(unsigned char *Img_in,unsigned char *Img_out,char *MASK,int Mask_Width,int rowImg,int colImg){
+__global__ void KernelConvolutionBasic1(unsigned char *Img_in,unsigned char *Img_out,unsigned int Mask_Width,int rowImg,int colImg){
   
   unsigned int row = blockIdx.y*blockDim.y+threadIdx.y;
   unsigned int col = blockIdx.x*blockDim.x+threadIdx.x;
@@ -35,7 +35,27 @@ __global__ void KernelConvolutionBasic(unsigned char *Img_in,unsigned char *Img_
     for (int i= 0;i<Mask_Width;i++) {
       for (int j= 0;j<Mask_Width;j++) {
         if ((N_start_point_i+i >= 0 && N_start_point_i + i < colImg)&& (N_start_point_j+j >= 0 && N_start_point_j + j < rowImg)) {
-          Pvalue+=Img_in[(N_start_point_i+i)*rowImg+(N_start_point_j+j)]*MASK[i*Mask_Width+j];
+          Pvalue+=Img_in[(N_start_point_i+i)*rowImg+(N_start_point_j+j)]*MASKx[i*Mask_Width+j];
+        }
+
+      }
+  }
+    Img_out[row*rowImg+col]=clamp(Pvalue);
+}
+
+__global__ void KernelConvolutionBasic2(unsigned char *Img_in,unsigned char *Img_out,unsigned int Mask_Width,int rowImg,int colImg){
+  
+  unsigned int row = blockIdx.y*blockDim.y+threadIdx.y;
+  unsigned int col = blockIdx.x*blockDim.x+threadIdx.x;
+
+  int N_start_point_i = row - (Mask_Width/2);
+  int N_start_point_j = col - (Mask_Width/2);
+
+    int Pvalue=0;
+    for (int i= 0;i<Mask_Width;i++) {
+      for (int j= 0;j<Mask_Width;j++) {
+        if ((N_start_point_i+i >= 0 && N_start_point_i + i < colImg)&& (N_start_point_j+j >= 0 && N_start_point_j + j < rowImg)) {
+          Pvalue+=Img_in[(N_start_point_i+i)*rowImg+(N_start_point_j+j)]*MASKy[i*Mask_Width+j];
         }
 
       }
@@ -107,7 +127,7 @@ int main(){
     
     printf("%.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
     
-    //imwrite("./outputs/1088302627.png",grad);
+   	//imwrite("./outputs/1088302627.png",grad);
     
   }
     printf("\n");
@@ -147,8 +167,8 @@ int main(){
     cudaMemcpy(d_img,img,size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_img_final,img,size, cudaMemcpyHostToDevice);
 
-  	KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outx,MASKx,MASK_size,row,col);
-    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outy,MASKy,MASK_size,row,col);
+  	KernelConvolutionBasic1<<<dimGrid,dimBlock>>>(d_img,d_img_outx,MASK_size,row,col);
+    KernelConvolutionBasic2<<<dimGrid,dimBlock>>>(d_img,d_img_outy,MASK_size,row,col);
     
     KernelNormalConvolution<<<dimGrid,dimBlock>>>(d_img_outx, d_img_outy,d_img_final,row,col);
     
