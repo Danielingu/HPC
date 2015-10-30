@@ -3,11 +3,12 @@
 #include <cv.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cmath> 
 
 using namespace std;
 using namespace cv;
 
-__device__ unsigned char conv(int v){
+__device__ unsigned char clamp(int v){
   if(v>255)
     return 255;
   else if(v<0)
@@ -33,7 +34,18 @@ __global__ void KernelConvolutionBasic(unsigned char *Img_in, char *M,unsigned c
 
       }
   }
-    Img_out[row*rowImg+col]=conv(Pvalue);
+    Img_out[row*rowImg+col]=clamp(Pvalue);
+}
+
+__global__ void KernelNormalConvolution(unsigned char *Img_inx, unsigned char *Img_iny, unsigned char *Img_out, int rowImg,int colImg){
+  
+  unsigned int row = blockIdx.y*blockDim.y+threadIdx.y;
+  unsigned int col = blockIdx.x*blockDim.x+threadIdx.x;
+	int cont = 0;	
+   if ((row < rowImg) && (col < colImg)){
+			cont = sqrt((double)(Img_inx[row * colImg + col] * Img_inx[row * colImg + col] + Img_iny[row * colImg + col] * Img_iny[row * colImg + col])); 
+	}
+	Img_out[row*rowImg+col]=clamp(cont);
 }
 
 int main(){
@@ -41,7 +53,7 @@ int main(){
 //Constantes usadas en la función Sobel
   int scale = 1;
   int delta = 0;
-  int ddepth = CV_8UC1;
+  int ddepth = CV_8U;
   
 //Reloj
 	clock_t secuencial;
@@ -50,23 +62,27 @@ int main(){
   
 //Imagenes	
   Mat imagen;
+  Mat grad;
   Mat gradiente_x;
   Mat gradiente_y;
   Mat imagenGris;
+  Mat abs_grad_x, abs_grad_y;
   
 //Leer imagen y separar memoria
   imagen = imread("inputs/img1.jpg", 0);
   Size s = imagen.size();
   int row=s.width;
   int col=s.height;
-  char M[9] = {-1,0,1,-2,0,2,-1,0,1};
-  imagenGris.create(col,row,CV_8UC1);
+  char Mx[9] = {-1,0,1,-2,0,2,-1,0,1};
+  char My[9] = {-1,-2,-1,0,0,0,1,2,1};
+  imagenGris.create(col,row,CV_8U);
   
-  int sizeM= sizeof(unsigned char)*9;
+  int sizeMx= sizeof(unsigned char)*9;
+  int sizeMy= sizeof(unsigned char)*9;
   int size = sizeof(unsigned char)*row*col;
   unsigned char *img=(unsigned char*)malloc(size);
   unsigned char *img_out=(unsigned char*)malloc(size);
-
+  unsigned char *img_out_final=(unsigned char*)malloc(size);
   img=imagen.data;
 
 //Secuencial 
@@ -74,41 +90,72 @@ int main(){
     
     secuencial = clock();
     Sobel( imagen, gradiente_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
-    Sobel( gradiente_x, gradiente_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    convertScaleAbs( gradiente_x, abs_grad_x );
+    
+    Sobel( imagen, gradiente_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    convertScaleAbs( gradiente_y, abs_grad_y );
+    
+    addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
+    
     printf("Tiempo secuencial: %.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
-    imwrite("./outputs/1088302627.png",gradiente_x);
+    
+    //imwrite("./outputs/1088302627.png",grad);
     
   }
+  
 //Paralelo
   for(int j =1; j<21; j++){
     
     float blocksize=32;
     dim3 dimBlock((int)blocksize,(int)blocksize,1);
     dim3 dimGrid(ceil(row/blocksize),ceil(col/blocksize),1);
+    
+    
     unsigned char *d_img;
-    unsigned char *d_img_out;
-    char *d_M;
+    unsigned char *d_img_outx;
+    unsigned char *d_img_outy;
+    unsigned char *d_img_final;
+     
+    char *d_Mx;
+    char *d_My;
+    
     cudaMalloc((void**)&d_img,size);
-    cudaMalloc((void**)&d_img_out,size);
-    cudaMalloc((void**)&d_M,sizeM);
+    cudaMalloc((void**)&d_img_final,size);
+    
+    cudaMalloc((void**)&d_img_outx,size);
+    cudaMalloc((void**)&d_Mx,sizeMx);
+    
+    cudaMalloc((void**)&d_img_outy,size);
+    cudaMalloc((void**)&d_My,sizeMy);
 
     paralelo = clock();
-    cudaMemcpy(d_M,M,sizeM,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_Mx,Mx,sizeMx,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_My,My,sizeMy,cudaMemcpyHostToDevice);
+    
     cudaMemcpy(d_img,img,size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_img_final,img,size, cudaMemcpyHostToDevice);
 
-    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_M,d_img_out,3,row,col);
+  	KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_Mx,d_img_outx,3,row,col);
+    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_My,d_img_outy,3,row,col);
+    KernelNormalConvolution<<<dimGrid,dimBlock>>>(d_img_outx, d_img_outy,d_img_final,row,col);
+    
+    
     cudaDeviceSynchronize();
-    cudaMemcpy(img_out,d_img_out,size,cudaMemcpyDeviceToHost);
+    
+    
+    
+    cudaMemcpy(img_out_final,d_img_final,size,cudaMemcpyDeviceToHost);
     printf("Tiempo paralelo: %.8f\n", (clock()-paralelo)/(double)CLOCKS_PER_SEC);
 
-    imagenGris.data = img_out;
-    //imwrite("./outputs/1088302627.png",imagenGris);
+    imagenGris.data = img_out_final;
+    imwrite("./outputs/1088302627.png",imagenGris);
 
     cudaFree(d_img);
-    cudaFree(d_img_out);
-    cudaFree(d_M);
-  }
-  
+    cudaFree(d_img_final);
+    cudaFree(d_img_outx);
+    cudaFree(d_img_outy);
+    cudaFree(d_Mx);
+    cudaFree(d_My);
+  }  
   return 0; 
-  
 }
