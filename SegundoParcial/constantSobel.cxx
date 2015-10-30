@@ -22,7 +22,7 @@ __device__ unsigned char clamp(int v){
   return v;
 }
 
-__global__ void KernelConvolutionBasic(unsigned char *Img_in,unsigned char *Img_out,int Mask_Width,int rowImg,int colImg){
+__global__ void KernelConvolutionBasic(unsigned char *Img_in,unsigned char *Img_out,unsigned int Mask_Width,int rowImg,int colImg){
   
   unsigned int row = blockIdx.y*blockDim.y+threadIdx.y;
   unsigned int col = blockIdx.x*blockDim.x+threadIdx.x;
@@ -84,8 +84,8 @@ int main(){
   char My[9] = {-1,-2,-1,0,0,0,1,2,1};
   imagenGris.create(col,row,CV_8UC1);
   
-  int sizeMx= sizeof(unsigned char)*(MASK_size*MASK_size);
-  int sizeMy= sizeof(unsigned char)*(MASK_size*MASK_size);
+  int sizeMx= sizeof(char)*(MASK_size*MASK_size);
+  int sizeMy= sizeof(char)*(MASK_size*MASK_size);
   int size = sizeof(unsigned char)*row*col;
   unsigned char *img=(unsigned char*)malloc(size);
   unsigned char *img_out=(unsigned char*)malloc(size);
@@ -106,7 +106,7 @@ int main(){
     
     printf("%.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
     
-    //imwrite("./outputs/1088302627.png",grad);
+    imwrite("./outputs/1088302627.png",grad);
     
   }
     printf("\n");
@@ -146,8 +146,8 @@ int main(){
     cudaMemcpy(d_img,img,size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_img_final,img,size, cudaMemcpyHostToDevice);
 
-  	KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outx,3,row,col);
-    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outy,3,row,col);
+  	KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outx,MASK_size,row,col);
+    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outy,MASK_size,row,col);
     
     KernelNormalConvolution<<<dimGrid,dimBlock>>>(d_img_outx, d_img_outy,d_img_final,row,col);
     
@@ -161,7 +161,7 @@ int main(){
     printf("%.8f\n", (clock()-paralelo)/(double)CLOCKS_PER_SEC);
 
     imagenGris.data = img_out_final;
-    imwrite("./outputs/1088302627.png",imagenGris);
+    //imwrite("./outputs/1088302627.png",imagenGris);
 
     cudaFree(d_img);
     cudaFree(d_img_final);
@@ -172,4 +172,3 @@ int main(){
   }  
   return 0; 
 }
-
