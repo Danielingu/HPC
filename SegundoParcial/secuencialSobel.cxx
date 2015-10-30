@@ -41,9 +41,11 @@ __global__ void KernelNormalConvolution(unsigned char *Img_inx, unsigned char *I
   
   unsigned int row = blockIdx.y*blockDim.y+threadIdx.y;
   unsigned int col = blockIdx.x*blockDim.x+threadIdx.x;
-	int cont = 0;	
-   if ((row < rowImg) && (col < colImg)){
-			cont = sqrt((double)(Img_inx[row * colImg + col] * Img_inx[row * colImg + col] + Img_iny[row * colImg + col] * Img_iny[row * colImg + col])); 
+  
+	int cont = 0;
+  
+   if ((col < rowImg) && (row < colImg)){
+			cont = sqrt((float)((Img_inx[row * rowImg + col] * Img_inx[row * rowImg + col]) + (Img_iny[row * rowImg + col] * Img_iny[row * rowImg + col]))); 
 	}
 	Img_out[row*rowImg+col]=clamp(cont);
 }
@@ -53,7 +55,7 @@ int main(){
 //Constantes usadas en la función Sobel
   int scale = 1;
   int delta = 0;
-  int ddepth = CV_8U;
+  int ddepth = CV_8UC1;
   
 //Reloj
 	clock_t secuencial;
@@ -69,13 +71,13 @@ int main(){
   Mat abs_grad_x, abs_grad_y;
   
 //Leer imagen y separar memoria
-  imagen = imread("inputs/img1.jpg", 0);
+  imagen = imread("inputs/img6.jpg", 0);
   Size s = imagen.size();
   int row=s.width;
   int col=s.height;
   char Mx[9] = {-1,0,1,-2,0,2,-1,0,1};
   char My[9] = {-1,-2,-1,0,0,0,1,2,1};
-  imagenGris.create(col,row,CV_8U);
+  imagenGris.create(col,row,CV_8UC1);
   
   int sizeMx= sizeof(unsigned char)*9;
   int sizeMy= sizeof(unsigned char)*9;
@@ -97,12 +99,12 @@ int main(){
     
     addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
     
-    printf("Tiempo secuencial: %.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
+    printf("%.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
     
-    //imwrite("./outputs/1088302627.png",grad);
+    imwrite("./outputs/1088302627.png",grad);
     
   }
-  
+    printf("\n");
 //Paralelo
   for(int j =1; j<21; j++){
     
@@ -137,6 +139,7 @@ int main(){
 
   	KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_Mx,d_img_outx,3,row,col);
     KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_My,d_img_outy,3,row,col);
+    
     KernelNormalConvolution<<<dimGrid,dimBlock>>>(d_img_outx, d_img_outy,d_img_final,row,col);
     
     
@@ -145,10 +148,11 @@ int main(){
     
     
     cudaMemcpy(img_out_final,d_img_final,size,cudaMemcpyDeviceToHost);
-    printf("Tiempo paralelo: %.8f\n", (clock()-paralelo)/(double)CLOCKS_PER_SEC);
+  
+    printf("%.8f\n", (clock()-paralelo)/(double)CLOCKS_PER_SEC);
 
     imagenGris.data = img_out_final;
-    imwrite("./outputs/1088302627.png",imagenGris);
+    //imwrite("./outputs/1088302627.png",imagenGris);
 
     cudaFree(d_img);
     cudaFree(d_img_final);
