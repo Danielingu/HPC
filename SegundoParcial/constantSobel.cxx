@@ -11,7 +11,8 @@
 using namespace std;
 using namespace cv;
 
-__constant__ char MASK[MASK_size * MASK_size];
+__constant__ char MASKx[MASK_size * MASK_size];
+__constant__ char MASKy[MASK_size * MASK_size];
 
 __device__ unsigned char clamp(int v){
   if(v>255)
@@ -22,7 +23,7 @@ __device__ unsigned char clamp(int v){
   return v;
 }
 
-__global__ void KernelConvolutionBasic(unsigned char *Img_in,unsigned char *Img_out,unsigned int Mask_Width,int rowImg,int colImg){
+__global__ void KernelConvolutionBasic(unsigned char *Img_in,unsigned char *Img_out,char *MASK,int Mask_Width,int rowImg,int colImg){
   
   unsigned int row = blockIdx.y*blockDim.y+threadIdx.y;
   unsigned int col = blockIdx.x*blockDim.x+threadIdx.x;
@@ -106,7 +107,7 @@ int main(){
     
     printf("%.8f\n", (clock()-secuencial)/(double)CLOCKS_PER_SEC);
     
-    imwrite("./outputs/1088302627.png",grad);
+    //imwrite("./outputs/1088302627.png",grad);
     
   }
     printf("\n");
@@ -137,8 +138,8 @@ int main(){
 
     paralelo = clock();
     
-    cudaMemcpyToSymbol(MASK,Mx,sizeMx);
-    cudaMemcpyToSymbol(MASK,My,sizeMy);
+    cudaMemcpyToSymbol(MASKx,Mx,sizeMx);
+    cudaMemcpyToSymbol(MASKy,My,sizeMy);
     
     //cudaMemcpy(d_Mx,Mx,sizeMx,cudaMemcpyHostToDevice);
     //cudaMemcpy(d_My,My,sizeMy,cudaMemcpyHostToDevice);
@@ -146,8 +147,8 @@ int main(){
     cudaMemcpy(d_img,img,size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_img_final,img,size, cudaMemcpyHostToDevice);
 
-  	KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outx,MASK_size,row,col);
-    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outy,MASK_size,row,col);
+  	KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outx,MASKx,MASK_size,row,col);
+    KernelConvolutionBasic<<<dimGrid,dimBlock>>>(d_img,d_img_outy,MASKy,MASK_size,row,col);
     
     KernelNormalConvolution<<<dimGrid,dimBlock>>>(d_img_outx, d_img_outy,d_img_final,row,col);
     
@@ -161,7 +162,7 @@ int main(){
     printf("%.8f\n", (clock()-paralelo)/(double)CLOCKS_PER_SEC);
 
     imagenGris.data = img_out_final;
-    //imwrite("./outputs/1088302627.png",imagenGris);
+    imwrite("./outputs/1088302627.png",imagenGris);
 
     cudaFree(d_img);
     cudaFree(d_img_final);
